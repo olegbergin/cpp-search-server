@@ -7,10 +7,14 @@
 #include <utility>
 #include <vector>
 #include <optional>
+#include <numeric>
 
 using namespace std;
 
 const int MAX_RESULT_DOCUMENT_COUNT = 5;
+const double OBSERVATIONAL_ERROR = 1e-6;
+
+
 
 string ReadLine() {
     string s;
@@ -82,29 +86,32 @@ class SearchServer {
 public:
 
     template <typename StringContainer>
-    explicit SearchServer(const StringContainer& stop_words) 
-        : stop_words_(MakeUniqueNonEmptyStrings(stop_words)) 
+    explicit SearchServer(const StringContainer& stop_words)
+        : stop_words_(MakeUniqueNonEmptyStrings(stop_words))
     {
         for (const string& word : stop_words) {
             if (!IsValidWord(word)) {
-                throw invalid_argument("invalid_argument"s);
+                throw invalid_argument("недопустимые символы в стоп слове:" + word);
             }
         }
         //stop_words_(MakeUniqueNonEmptyStrings(stop_words)) 
     }
 
-    explicit SearchServer(const string& stop_words_text) 
-        : SearchServer(SplitIntoWords(stop_words_text)) 
+    explicit SearchServer(const string& stop_words_text)
+        : SearchServer(SplitIntoWords(stop_words_text))
     {
     }
 
     void AddDocument(int document_id, const string& document, DocumentStatus status, const vector<int>& ratings) {
-        if ((document_id < 0) || (documents_.count(document_id) > 0)) {
-            throw invalid_argument("invalid_argument"s);
+        if (document_id < 0) {
+            throw invalid_argument("документ с отрицательным id"s);
+        }
+        if (documents_.count(document_id) > 0) {
+            throw invalid_argument("документ c таким id уже существует"s);
         }
         vector<string> words;
         if (!SplitIntoWordsNoStop(document, words)) {
-            throw invalid_argument("invalid_argument"s);
+            throw invalid_argument("недопустимые символы в тексте добавляемого документа"s);
         }
 
         const double inv_word_count = 1.0 / words.size();
@@ -118,13 +125,13 @@ public:
     template <typename DocumentPredicate>
     vector<Document> FindTopDocuments(const string& raw_query, DocumentPredicate document_predicate) const {
         Query query = ParseQuery(raw_query);
-        if (!query.is_correct) {
+        /*if (!query.is_correct) {
             throw invalid_argument("invalid_argument"s);
-        }
+        }*/
         auto matched_documents = FindAllDocuments(query, document_predicate);
 
         sort(matched_documents.begin(), matched_documents.end(), [](const Document& lhs, const Document& rhs) {
-            if (abs(lhs.relevance - rhs.relevance) < 1e-6) {
+            if (abs(lhs.relevance - rhs.relevance) < OBSERVATIONAL_ERROR) {
                 return lhs.rating > rhs.rating;
             }
             else {
@@ -162,28 +169,28 @@ public:
 
     tuple<vector<string>, DocumentStatus> MatchDocument(const string& raw_query, int document_id) const {
         const Query query = ParseQuery(raw_query);
-        if (!query.is_correct) {
+        /*if (!query.is_correct) {
             throw invalid_argument("invalid_argument"s);
-        }
+        }*/
         vector<string> matched_words;
-            for (const string& word : query.plus_words) {
-                if (word_to_document_freqs_.count(word) == 0) {
-                    continue;
-                }
-                if (word_to_document_freqs_.at(word).count(document_id)) {
-                    matched_words.push_back(word);
-                }
+        for (const string& word : query.plus_words) {
+            if (word_to_document_freqs_.count(word) == 0) {
+                continue;
             }
-            for (const string& word : query.minus_words) {
-                if (word_to_document_freqs_.count(word) == 0) {
-                    continue;
-                }
-                if (word_to_document_freqs_.at(word).count(document_id)) {
-                    matched_words.clear();
-                    break;
-                }
+            if (word_to_document_freqs_.at(word).count(document_id)) {
+                matched_words.push_back(word);
             }
-            return tuple{ matched_words, documents_.at(document_id).status };
+        }
+        for (const string& word : query.minus_words) {
+            if (word_to_document_freqs_.count(word) == 0) {
+                continue;
+            }
+            if (word_to_document_freqs_.at(word).count(document_id)) {
+                matched_words.clear();
+                break;
+            }
+        }
+        return tuple{ matched_words, documents_.at(document_id).status };
     }
 
 private:
@@ -226,10 +233,7 @@ private:
         if (ratings.empty()) {
             return 0;
         }
-        int rating_sum = 0;
-        for (const int rating : ratings) {
-            rating_sum += rating;
-        }
+        int rating_sum = accumulate(ratings.begin(), ratings.end(), 0);
         return rating_sum / static_cast<int>(ratings.size());
     }
 
@@ -259,12 +263,12 @@ private:
     struct Query {
         set<string> plus_words;
         set<string> minus_words;
-        bool is_correct;
+        //bool is_correct;
     };
 
     Query ParseQuery(const string& text) const {
         Query query;
-        query.is_correct = true;
+        //query.is_correct = true;
         for (const string& word : SplitIntoWords(text)) {
             const QueryWord query_word = ParseQueryWord(word);
             if (query_word.is_valid) {
@@ -278,7 +282,7 @@ private:
                 }
             }
             else {
-                query.is_correct = false;
+                throw invalid_argument("запрос не корректен"s);
             }
         }
         return query;
@@ -348,7 +352,7 @@ void AddDocument(SearchServer& search_server, int document_id, const string& doc
         search_server.AddDocument(document_id, document, status, ratings);
     }
     catch (const exception& e) {
-        cout << "Ошибка добавления документа "s << document_id << ": "s << e.what() << endl;
+        cout << "Ошибка добавления документа "s << document_id << ": "s << e.what() << endl << endl;
     }
 }
 
@@ -360,7 +364,7 @@ void FindTopDocuments(const SearchServer& search_server, const string& raw_query
         }
     }
     catch (const exception& e) {
-        cout << "Ошибка поиска: "s << e.what() << endl;
+        cout << "Ошибка поиска: "s << e.what() << endl << endl;
     }
 }
 
@@ -375,7 +379,7 @@ void MatchDocuments(const SearchServer& search_server, const string& query) {
         }
     }
     catch (const exception& e) {
-        cout << "Ошибка матчинга документов на запрос "s << query << ": "s << e.what() << endl;
+        cout << "Ошибка матчинга документов на запрос "s << query << ": "s << e.what() << endl << endl;
     }
 }
 
