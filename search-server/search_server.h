@@ -8,6 +8,7 @@
 #include <algorithm>
 #include <numeric>
 #include <cmath>
+
 #include "document.h"
 #include "string_processing.h"
 
