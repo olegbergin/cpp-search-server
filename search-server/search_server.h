@@ -19,52 +19,18 @@ const double OBSERVATIONAL_ERROR = 1e-6;
 class SearchServer {
 public:
     template <typename StringContainer>
-    explicit SearchServer(const StringContainer& stop_words)
-        : stop_words_(MakeUniqueNonEmptyStrings(stop_words))
-    {
-        for (const std::string& word : stop_words) {
-            if (!IsValidWord(word)) {
-                throw std::invalid_argument("недопустимые символы в стоп слове:" + word);
-            }
-        }
-    }
+    explicit SearchServer(const StringContainer& stop_words);
 
     explicit SearchServer(const std::string& stop_words_text);
 
     void AddDocument(int document_id, const std::string& document, DocumentStatus status, const std::vector<int>& ratings);
 
     template <typename DocumentPredicate>
-    std::vector<Document> FindTopDocuments(const std::string& raw_query, DocumentPredicate document_predicate) const {
-        Query query = ParseQuery(raw_query);
-        auto matched_documents = FindAllDocuments(query, document_predicate);
+    std::vector<Document> FindTopDocuments(const std::string& raw_query, DocumentPredicate document_predicate) const ;
 
-        sort(matched_documents.begin(), matched_documents.end(), [](const Document& lhs, const Document& rhs) {
-            if (std::abs(lhs.relevance - rhs.relevance) < OBSERVATIONAL_ERROR) {
-                return lhs.rating > rhs.rating;
-            }
-            else {
-                return lhs.relevance > rhs.relevance;
-            }
-            });
-        if (matched_documents.size() > MAX_RESULT_DOCUMENT_COUNT) {
-            matched_documents.resize(MAX_RESULT_DOCUMENT_COUNT);
-        }
+    std::vector<Document> FindTopDocuments(const std::string& raw_query, DocumentStatus status) const ;
 
-        // Exchange matched_documents and result instead of deep copying
-        return matched_documents;
-    }
-
-    std::vector<Document> FindTopDocuments(const std::string& raw_query, DocumentStatus status) const {
-        return FindTopDocuments(
-            raw_query,
-            [status](int document_id, DocumentStatus document_status, int rating) {
-                return document_status == status;
-            });
-    }
-
-    std::vector<Document> FindTopDocuments(const std::string& raw_query) const {
-        return FindTopDocuments(raw_query, DocumentStatus::ACTUAL);
-    }
+    std::vector<Document> FindTopDocuments(const std::string& raw_query) const ;
 
     size_t GetDocumentCount() const;
 
@@ -110,7 +76,43 @@ private:
     double ComputeWordInverseDocumentFreq(const std::string& word) const;
 
     template <typename DocumentPredicate>
-    std::vector<Document> FindAllDocuments(const Query& query, DocumentPredicate document_predicate) const {
+    std::vector<Document> FindAllDocuments(const Query& query, DocumentPredicate document_predicate) const ;
+};
+
+    template <typename StringContainer>
+    SearchServer::SearchServer(const StringContainer& stop_words)
+        : stop_words_(MakeUniqueNonEmptyStrings(stop_words))
+    {
+        for (const std::string& word : stop_words) {
+            if (!IsValidWord(word)) {
+                throw std::invalid_argument("недопустимые символы в стоп слове:" + word);
+            }
+        }
+    }
+
+    template <typename DocumentPredicate>
+    std::vector<Document> SearchServer::FindTopDocuments(const std::string& raw_query, DocumentPredicate document_predicate) const {
+        Query query = ParseQuery(raw_query);
+        auto matched_documents = FindAllDocuments(query, document_predicate);
+
+        sort(matched_documents.begin(), matched_documents.end(), [](const Document& lhs, const Document& rhs) {
+            if (std::abs(lhs.relevance - rhs.relevance) < OBSERVATIONAL_ERROR) {
+                return lhs.rating > rhs.rating;
+            }
+            else {
+                return lhs.relevance > rhs.relevance;
+            }
+            });
+        if (matched_documents.size() > MAX_RESULT_DOCUMENT_COUNT) {
+            matched_documents.resize(MAX_RESULT_DOCUMENT_COUNT);
+        }
+
+        // Exchange matched_documents and result instead of deep copying
+        return matched_documents;
+    }
+    
+    template <typename DocumentPredicate>
+    std::vector<Document> SearchServer::FindAllDocuments(const Query& query, DocumentPredicate document_predicate) const {
         std::map<int, double> document_to_relevance;
         for (const std::string& word : query.plus_words) {
             if (word_to_document_freqs_.count(word) == 0) {
@@ -140,5 +142,3 @@ private:
         }
         return matched_documents;
     }
-};
-

@@ -31,13 +31,7 @@ private:
     size_t size_;
 };
 
-std::ostream& operator<<(std::ostream& output, Document document) {
-    using namespace std;
-    output << "{ "s << "document_id = "s << document.id << ", " <<
-        "relevance = " << document.relevance << ", " <<
-        "rating = "s << document.rating << " }"s;
-    return output;
-}
+
 template <typename Iterator>
 std::ostream& operator<<(std::ostream& os, const IteratorRange<Iterator>& range) {
     for (const auto& it : range) {

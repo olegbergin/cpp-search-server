@@ -5,19 +5,20 @@ using namespace std;
 RequestQueue::RequestQueue(const SearchServer& search_server)
     : search_server_(search_server)
     , no_results_requests_(0)
-    , current_time_(0) {
+    , current_time_(0)
+    {
 }
 
 vector<Document> RequestQueue::AddFindRequest(const string& raw_query, DocumentStatus status) {
-    const auto result = search_server_.FindTopDocuments(raw_query, status);
-    AddRequest(result.size());
-    return result;
+    return AddFindRequest(
+        raw_query,
+        [status](int document_id, DocumentStatus document_status, int rating) {
+            return document_status == status;
+        });
 }
 
 vector<Document> RequestQueue::AddFindRequest(const string& raw_query) {
-    const auto result = search_server_.FindTopDocuments(raw_query);
-    AddRequest(result.size());
-    return result;
+    return AddFindRequest(raw_query, DocumentStatus::ACTUAL);
 }
 
 int RequestQueue::GetNoResultRequests() const {

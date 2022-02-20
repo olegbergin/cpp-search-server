@@ -7,6 +7,15 @@ Document::Document(int id, double relevance, int rating)
     , relevance(relevance)
     , rating(rating) {
 }
+
+std::ostream& operator<<(std::ostream& output, Document document) {
+    using namespace std;
+    output << "{ "s << "document_id = "s << document.id << ", " <<
+        "relevance = " << document.relevance << ", " <<
+        "rating = "s << document.rating << " }"s;
+    return output;
+}
+
 void PrintDocument(const Document& document) {
     cout << "{ "s
         << "document_id = "s << document.id << ", "s

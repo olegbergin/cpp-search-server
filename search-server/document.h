@@ -21,6 +21,8 @@ enum class DocumentStatus {
     REMOVED,
 };
 
+std::ostream& operator<<(std::ostream& output, Document document) ;
+
 void PrintDocument(const Document& document);
 
 void PrintMatchDocumentResult(int document_id, const std::vector<std::string>& words, DocumentStatus status);
