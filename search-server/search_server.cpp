@@ -87,47 +87,22 @@ tuple<vector<string>, DocumentStatus> SearchServer::MatchDocument(const string& 
     return tuple{ matched_words, documents_.at(document_id).status };
 }
 
-void SearchServer::RemoveDocument(int document_id)
-{
+void SearchServer::RemoveDocument(int document_id){
+    if (!document_ids_.count(document_id)) {
+        return;
+    }
+
     document_ids_.erase(document_id);
 
     documents_.erase(documents_.find(document_id));
 
-    for (auto& [str, fr] : word_to_document_freqs_) {
-        fr.erase(document_id);
+    for (auto& [word, freq] : doc_to_word_freq_[document_id]) {
+        word_to_document_freqs_[word].erase(document_id);
     }
-    
-    doc_to_word_freq_.erase(document_id);
-}
 
-//std::set<int> SearchServer::GetDuplicatedIds() const
-//{
-//    std::set<int> result;
-//
-//    std::set<std::set<int>> unique_ids;
-//
-//    auto current = std::begin(documents_);
-//    const auto last = std::end(documents_);
-//
-//
-//    while (current != last)
-//    {
-//        auto&& [key, value] = *current;
-//
-//        if (unique_ids.count(value.word_ids) == 0)
-//        {
-//            unique_ids.emplace(value.word_ids);
-//        }
-//        else
-//        {
-//            result.emplace(key);
-//        }
-//
-//        current++;
-//    }
-//
-//    return result;
-//}
+    doc_to_word_freq_.erase(document_id);
+
+}
 
 bool SearchServer::IsStopWord(const string& word) const {
     return stop_words_.count(word) > 0;
