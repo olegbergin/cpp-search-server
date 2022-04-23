@@ -14,15 +14,11 @@ void SearchServer::AddDocument(int document_id, const string& document, Document
     if (documents_.count(document_id) > 0) {
         throw invalid_argument("документ c таким id уже существует"s);
     }
-    vector<string> words;
-    if (!SplitIntoWordsNoStop(document, words)) {
-        throw invalid_argument("недопустимые символы в тексте добавляемого документа"s);
-    }
 
+    vector<string> words = SplitIntoWordsNoStop(document);
     const double inv_word_count = 1.0 / words.size();
     for (const string& word : words) {
         word_to_document_freqs_[word][document_id] += inv_word_count;
-
         doc_to_word_freq_[document_id][word] += inv_word_count;
     }
     documents_.emplace(document_id, DocumentData{ ComputeAverageRating(ratings), status });
@@ -59,8 +55,7 @@ const map<string, double>& SearchServer::GetWordFrequencies(int document_id) {
     if (!doc_to_word_freq_.count(document_id)) {
         return s_empty;
     }
-    const map<string, double>& word_freq = doc_to_word_freq_.at(document_id);
-    return word_freq;
+    return doc_to_word_freq_.at(document_id);
 }
 
 tuple<vector<string>, DocumentStatus> SearchServer::MatchDocument(const string& raw_query, int document_id) const {
@@ -87,21 +82,27 @@ tuple<vector<string>, DocumentStatus> SearchServer::MatchDocument(const string& 
     return tuple{ matched_words, documents_.at(document_id).status };
 }
 
-void SearchServer::RemoveDocument(int document_id){
+    /*void SearchServer::RemoveDocument(int document_id){
+        if (!document_ids_.count(document_id)) {
+            return;
+        }
+        for (auto& [word, freq] : doc_to_word_freq_[document_id]) {
+            word_to_document_freqs_[word].erase(document_id);
+        }
+        document_ids_.erase(document_id);
+        documents_.erase(document_id);
+        doc_to_word_freq_.erase(document_id);
+    }*/
+void SearchServer::RemoveDocument(int document_id) {
     if (!document_ids_.count(document_id)) {
         return;
     }
-
-    document_ids_.erase(document_id);
-
-    documents_.erase(documents_.find(document_id));
-
-    for (auto& [word, freq] : doc_to_word_freq_[document_id]) {
-        word_to_document_freqs_[word].erase(document_id);
+    for (auto& [word, ids_freqs] : word_to_document_freqs_) {
+        ids_freqs.erase(document_id);
     }
-
+    document_ids_.erase(document_id);
+    documents_.erase(document_id);
     doc_to_word_freq_.erase(document_id);
-
 }
 
 bool SearchServer::IsStopWord(const string& word) const {
@@ -110,24 +111,27 @@ bool SearchServer::IsStopWord(const string& word) const {
 
 bool SearchServer::IsValidWord(const string& word) {
     // A valid word must not contain special characters
+    if (word[0] == '-') {
+        if (word[1] == '-' || word.length() == 1) {
+            return false;
+        }
+    }
     return none_of(word.begin(), word.end(), [](char c) {
         return c >= '\0' && c < ' ';
         });
 }
 
-[[nodiscard]] bool SearchServer::SplitIntoWordsNoStop(const string& text, vector<string>& result) const {
-    result.clear();
-    vector<string> words;
+vector<string> SearchServer::SplitIntoWordsNoStop(const string& text ) const {
+    vector<string> result;
     for (const string& word : SplitIntoWords(text)) {
         if (!IsValidWord(word)) {
-            return false;
+            throw invalid_argument("недопустимые символы в тексте добавляемого документа"s);
         }
         if (!IsStopWord(word)) {
-            words.push_back(word);
+            result.push_back(word);
         }
     }
-    result.swap(words);
-    return true;
+    return result;
 }
 
 int SearchServer::ComputeAverageRating(const vector<int>& ratings) {
@@ -140,39 +144,32 @@ int SearchServer::ComputeAverageRating(const vector<int>& ratings) {
 
 SearchServer::QueryWord SearchServer::ParseQueryWord(string text) const {
     bool is_minus = false;
-    bool is_valid = false;
     if (IsValidWord(text)) {
-        is_valid = true;
         if (text[0] == '-') {
-            if (text[1] == '-' || text.length() == 1) {
-                is_valid = false;
-            }
             is_minus = true;
             text = text.substr(1);
         }
     }
-    return { text, is_minus, IsStopWord(text), is_valid };
+    else {
+        throw invalid_argument("запрос не корректен"s);
+    }
+    return { text, is_minus, IsStopWord(text) };
 }
 
 SearchServer::Query SearchServer::ParseQuery(const string& text) const {
     Query query;
     for (const string& word : SplitIntoWords(text)) {
         const QueryWord query_word = ParseQueryWord(word);
-        if (query_word.is_valid) {
-            if (!query_word.is_stop) {
-                if (query_word.is_minus) {
-                    query.minus_words.insert(query_word.data);
-                }
-                else {
-                    query.plus_words.insert(query_word.data);
-                }
+        if (!query_word.is_stop) {
+            if (query_word.is_minus) {
+                query.minus_words.insert(query_word.data);
+            }
+            else {
+                query.plus_words.insert(query_word.data);
             }
         }
-        else {
-            throw invalid_argument("запрос не корректен"s);
-        }
+        return query;
     }
-    return query;
 }
 
 double SearchServer::ComputeWordInverseDocumentFreq(const string& word) const {

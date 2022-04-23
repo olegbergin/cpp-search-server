@@ -27,9 +27,7 @@ public:
 
     template <typename DocumentPredicate>
     std::vector<Document> FindTopDocuments(const std::string& raw_query, DocumentPredicate document_predicate) const ;
-
     std::vector<Document> FindTopDocuments(const std::string& raw_query, DocumentStatus status) const ;
-
     std::vector<Document> FindTopDocuments(const std::string& raw_query) const ;
 
     size_t GetDocumentCount() const;
@@ -63,7 +61,7 @@ private:
 
     static bool IsValidWord(const std::string& word);
 
-    [[nodiscard]] bool SplitIntoWordsNoStop(const std::string& text, std::vector<std::string>& result) const;
+    std::vector<std::string> SplitIntoWordsNoStop(const std::string& text) const;
 
     static int ComputeAverageRating(const std::vector<int>& ratings);
 
@@ -71,7 +69,6 @@ private:
         std::string data;
         bool is_minus;
         bool is_stop;
-        bool is_valid;
     };
 
     QueryWord ParseQueryWord(std::string text) const;
